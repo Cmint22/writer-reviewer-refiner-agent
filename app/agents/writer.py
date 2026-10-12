@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from app.llm_client import LLMClient
 from app.schemas import Draft, TutorialRequest
+from app.textutil import sanitize_text
 
 WRITER_SYSTEM_PROMPT = """\
 Bạn là WRITER AGENT trong một hệ thống multi-agent (Writer -> Reviewer -> Refiner).
@@ -26,7 +27,15 @@ QUY TẮC:
 2. Mục 'Các bước' là danh sách đánh số; mỗi bước một hành động.
 3. Lệnh, đoạn mã, tên file, giá trị cụ thể viết trong khối code.
 4. Tuân thủ giới hạn độ dài và văn phong phù hợp đối tượng người đọc.
-5. CHỈ trả về nội dung bài hướng dẫn Markdown — không lời dẫn, không giải thích thêm,
+5. Tiêu đề dùng đúng các thuật ngữ của chủ đề; không thay bằng từ khác.
+6. Các bước theo đúng thứ tự người đọc phải làm trên thực tế và đủ để làm theo từ đầu đến cuối:
+   không bỏ bước nền tảng (khởi tạo, tạo thư mục, cài đặt, thêm file...), không chạy lệnh kiểm tra
+   hay lệnh phụ thuộc trước khi bước tiền đề đã được thực hiện.
+7. Phần 'Chuẩn bị' phải khớp với các bước và đoạn mã. Với khóa API/mật khẩu: nếu hướng dẫn đặt biến môi
+   trường thì mã đọc khóa từ biến môi trường (ví dụ `os.environ["TÊN_BIẾN"]`); không bao giờ viết giá trị
+   khóa trực tiếp vào mã.
+8. Chỉ dùng ký tự văn bản thông thường (không ký tự ẩn như zero-width space, không khoảng trắng đặc biệt).
+9. CHỈ trả về nội dung bài hướng dẫn Markdown — không lời dẫn, không giải thích thêm,
    không bọc toàn bộ bài trong khối code.
 """
 
@@ -61,7 +70,7 @@ class WriterAgent:
             max_words=request.max_words,
         )
         raw = self._llm.chat(WRITER_SYSTEM_PROMPT, user_prompt)
-        content = strip_outer_code_fence(raw)
+        content = sanitize_text(strip_outer_code_fence(raw)).strip()
         if not content:
             raise RuntimeError("Writer returned an empty draft.")
         return Draft(

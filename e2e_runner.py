@@ -26,7 +26,7 @@ from pathlib import Path
 from app.artifacts import save_artifacts
 from app.config import settings
 from app.pipeline import WriterReviewerRefinerPipeline
-from app.schemas import PipelineResult, TutorialRequest
+from app.schemas import MAX_MAX_WORDS, MIN_MAX_WORDS, PipelineResult, TutorialRequest
 
 DEMO_TOPICS = [
     "Tạo môi trường ảo (virtual environment) và cài thư viện cho dự án Python",
@@ -61,18 +61,35 @@ def run_one(pipeline: WriterReviewerRefinerPipeline, request: TutorialRequest, o
         for r in failed_rules:
             print(f"  {r.id}: {r.comment}")
     else:
-        print("OK: all code-checkable rules (R1-R4) pass on the final text.")
+        print("OK: all code-checkable rules (R1-R8) pass on the final text.")
 
     paths = save_artifacts(result, out_dir)
     print(f"Saved to: {paths['final'].parent}")
     return result
 
 
+def _max_words(value: str) -> int:
+    """argparse type: reject a limit that TutorialRequest would reject, with a clear message."""
+    try:
+        n = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"'{value}' không phải số nguyên") from None
+    if not MIN_MAX_WORDS <= n <= MAX_MAX_WORDS:
+        raise argparse.ArgumentTypeError(
+            f"--max-words phải nằm trong khoảng {MIN_MAX_WORDS}–{MAX_MAX_WORDS} (nhận được {n}). "
+            f"Muốn ép R4 trượt, dùng giá trị gần {MIN_MAX_WORDS} với bài dài hơn {MIN_MAX_WORDS} từ."
+        )
+    return n
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the Writer-Reviewer-Refiner pipeline end-to-end.")
     parser.add_argument("--topic", "-t", default=None, help="Run exactly this ONE topic instead of the demo set.")
     parser.add_argument("--audience", "-a", default="người mới bắt đầu", help="Target reader.")
-    parser.add_argument("--max-words", "-w", type=int, default=350, help="Length limit (prose words).")
+    parser.add_argument(
+        "--max-words", "-w", type=_max_words, default=350,
+        help=f"Length limit (prose words), {MIN_MAX_WORDS}-{MAX_MAX_WORDS}.",
+    )
     parser.add_argument(
         "--output-dir", "-o", default=str(Path(__file__).parent / "outputs"),
         help="Directory to save deliverables into (default: ./outputs).",
@@ -92,6 +109,7 @@ def main() -> None:
     print("WRITER-REVIEWER-REFINER MULTI-AGENT — E2E RUN")
     print("=" * 80)
     print(f"LLM model   : {settings.llm_model}")
+    print(f"Reviewer    : {settings.reviewer_model or settings.llm_model}")
     print(f"LLM base URL: {settings.llm_base_url}")
     print(f"Topics      : {len(topics)}  | review rounds per topic: 1")
     print("-" * 80)

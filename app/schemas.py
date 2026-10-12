@@ -21,13 +21,16 @@ from typing import Literal
 from pydantic import BaseModel, Field, computed_field
 
 
+MIN_MAX_WORDS, MAX_MAX_WORDS = 100, 1200
+
+
 class TutorialRequest(BaseModel):
     """What the user asks for: a short how-to tutorial on a topic."""
 
     topic: str = Field(..., min_length=3, description="Topic of the tutorial")
     audience: str = Field("người mới bắt đầu", description="Who the tutorial is written for")
     max_words: int = Field(
-        350, ge=100, le=1200, description="Soft upper bound for the tutorial length (prose words)"
+        350, ge=MIN_MAX_WORDS, le=MAX_MAX_WORDS, description="Soft upper bound for the tutorial length (prose words)"
     )
 
 

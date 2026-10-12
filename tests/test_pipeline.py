@@ -65,7 +65,7 @@ def test_reviewer_is_called_exactly_once_even_if_refiner_output_is_still_bad(req
 
 def test_post_check_runs_only_rule_items(request_obj):
     result = WriterReviewerRefinerPipeline(llm_client=FakeLLMClient()).run(request_obj)
-    assert [r.id for r in result.post_check] == ["R1", "R2", "R3", "R4"]
+    assert [r.id for r in result.post_check] == [f"R{i}" for i in range(1, 9)]
     assert all(r.kind == "rule" for r in result.post_check)
 
 

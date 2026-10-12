@@ -27,6 +27,12 @@ class Settings:
     llm_temperature: float = float(os.getenv("LLM_TEMPERATURE", "0.2"))
     llm_request_timeout: float = float(os.getenv("LLM_REQUEST_TIMEOUT", "60"))
 
+    # --- Optional: a separate model for the Reviewer (avoids self-bias) ---
+    # Any of these left empty falls back to the LLM_* value above.
+    reviewer_model: str | None = os.getenv("REVIEWER_LLM_MODEL") or None
+    reviewer_base_url: str | None = os.getenv("REVIEWER_LLM_BASE_URL") or None
+    reviewer_api_key: str | None = os.getenv("REVIEWER_LLM_API_KEY") or None
+
     # --- FastAPI server ---
     app_host: str = os.getenv("APP_HOST", "0.0.0.0")
     app_port: int = int(os.getenv("APP_PORT", "8000"))

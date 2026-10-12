@@ -25,8 +25,8 @@ def test_reviewer_signature_takes_only_the_draft():
 def test_good_draft_with_all_llm_items_passing_is_all_passed(good_draft):
     report = ReviewerAgent(FixedReply(_all_llm_pass())).run(good_draft)
     assert isinstance(report, ReviewReport)
-    assert [r.id for r in report.results] == ["R1", "R2", "R3", "R4", "L1", "L2", "L3", "L4"]
-    assert report.all_passed and report.passed_count == report.total == 8
+    assert [r.id for r in report.results] == [f"R{i}" for i in range(1, 9)] + ["L1", "L2", "L3", "L4"]
+    assert report.all_passed and report.passed_count == report.total == 12
 
 
 def test_reviewer_finds_real_defects_in_the_fake_writers_draft(request_obj):

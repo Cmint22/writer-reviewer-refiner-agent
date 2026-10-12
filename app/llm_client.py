@@ -12,6 +12,7 @@ real `OpenAICompatibleClient` and requires `LLM_API_KEY` to be set.
 """
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Protocol
 
 from app.config import Settings, settings
@@ -67,3 +68,22 @@ def get_llm_client(cfg: Settings | None = None) -> LLMClient:
             f"(LLM_BASE_URL={cfg.llm_base_url}, LLM_MODEL={cfg.llm_model})."
         )
     return OpenAICompatibleClient(cfg)
+
+
+def get_reviewer_llm_client(cfg: Settings | None = None, default: LLMClient | None = None) -> LLMClient:
+    """
+    Client for the Reviewer. If REVIEWER_LLM_MODEL / _BASE_URL / _API_KEY are set, the
+    Reviewer talks to that model (a stronger one than the Writer is recommended, because a
+    small model reviewing its own output tends to miss its own mistakes). Otherwise it
+    shares the Writer's client.
+    """
+    cfg = cfg or settings
+    if not (cfg.reviewer_model or cfg.reviewer_base_url or cfg.reviewer_api_key):
+        return default or get_llm_client(cfg)
+    reviewer_cfg = replace(
+        cfg,
+        llm_model=cfg.reviewer_model or cfg.llm_model,
+        llm_base_url=cfg.reviewer_base_url or cfg.llm_base_url,
+        llm_api_key=cfg.reviewer_api_key or cfg.llm_api_key,
+    )
+    return get_llm_client(reviewer_cfg)

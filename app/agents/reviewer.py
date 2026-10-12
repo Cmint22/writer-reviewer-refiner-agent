@@ -9,7 +9,7 @@ The Reviewer NEVER rewrites the draft. Its output type (`ReviewReport`)
 has no field that could carry a revised text.
 
 Two kinds of items are checked, by different checkers:
-  - rule items (R1-R4): plain Python, deterministic (app/checklist.py).
+  - rule items (R1-R8): plain Python, deterministic (app/checklist.py).
   - llm items  (L1-L4): the LLM, asked to answer with a JSON array.
 
 Fail-closed: if the LLM does not return a valid verdict for an item, that
@@ -37,7 +37,12 @@ QUY TẮC BẮT BUỘC:
 3. Với mục KHÔNG ĐẠT, phần "comment" phải nêu cụ thể lỗi nằm ở đâu (ví dụ: số thứ tự bước, tên mục)
    và cần sửa thế nào, trong 1-2 câu ngắn. Với mục đạt, "comment" có thể để rất ngắn.
 4. Chỉ đánh giá các mục có trong CHECKLIST, dùng đúng "id" đã cho.
-5. Chỉ trả về MỘT mảng JSON hợp lệ, không có văn bản nào khác, không bọc trong khối code. Định dạng:
+5. Trường "comment" LUÔN viết bằng TIẾNG VIỆT, kể cả khi bài viết hay chủ đề chứa thuật ngữ tiếng Anh.
+   Không trả lời bằng tiếng Anh.
+6. Kiểm tra từng bước và từng lệnh một cách cẩn thận, không khen chung chung. Chỉ đặt "passed": true khi
+   bạn đã đối chiếu mục đó với từng bước/lệnh cụ thể trong bài; nếu còn nghi ngờ thì đặt "passed": false và
+   nêu rõ bước nào.
+7. Chỉ trả về MỘT mảng JSON hợp lệ, không có văn bản nào khác, không bọc trong khối code. Định dạng:
    [{"id": "L1", "passed": true, "comment": "..."}, {"id": "L2", "passed": false, "comment": "..."}]
 """
 
@@ -54,9 +59,38 @@ CHỦ ĐỀ: {topic}
 === END CHECKLIST ===
 
 Hãy trả về mảng JSON đánh giá đúng theo quy tắc trong system prompt.
+Nhắc lại: mọi "comment" phải bằng TIẾNG VIỆT.
 """
 
 _TRUE_STRINGS = {"true", "pass", "passed", "yes", "đạt"}
+
+# --- Language guard ----------------------------------------------------------------
+# A small LLM sometimes answers in English although the prompt is Vietnamese. The
+# prompt now says "tiếng Việt" twice, but the guarantee comes from code: a comment
+# that is clearly not Vietnamese is replaced by a Vietnamese one.
+_VI_CHARS = frozenset("ăâđêôơưàáảãạằắẳẵặầấẩẫậèéẻẽẹềếểễệìíỉĩịòóỏõọồốổỗộờớởỡợùúủũụừứửữựỳýỷỹỵ")
+_EN_WORDS = frozenset(
+    "the and is are with for that this each all not of from which must should requires require "
+    "contains contain step steps tutorial command commands clear single action language terms "
+    "content explained context beginners accessible focused concise there has have been".split()
+)
+_TOKEN_RE = re.compile(r"[^\W\d_]+", re.UNICODE)
+
+
+def is_vietnamese(text: str) -> bool:
+    """False only when the text shows clear English function words and fewer Vietnamese words."""
+    tokens = _TOKEN_RE.findall(text.lower())
+    english = sum(1 for t in tokens if t in _EN_WORDS)
+    vietnamese = sum(1 for t in tokens if any(c in _VI_CHARS for c in t))
+    return not english > vietnamese
+
+
+def _vietnamese_comment(passed: bool, comment: str) -> str:
+    if not comment or is_vietnamese(comment):
+        return comment
+    if passed:
+        return "Đạt."
+    return f"Chưa đạt. Nhận xét gốc của Reviewer (bằng tiếng Anh): {comment}"
 
 
 def _extract_json_array(raw: str) -> list | None:
@@ -104,7 +138,7 @@ class ReviewerAgent:
 
     def run(self, draft: Draft) -> ReviewReport:
         # 1) Deterministic items, checked in code.
-        rule_results = {r.id: r for r in run_rule_checks(draft.content, draft.max_words)}
+        rule_results = {r.id: r for r in run_rule_checks(draft.content, draft.max_words, draft.topic)}
 
         # 2) Qualitative items, judged by the LLM (a single call).
         checklist_block = "\n".join(f"- {item.id}: {item.description}" for item in LLM_ITEMS)
@@ -124,6 +158,7 @@ class ReviewerAgent:
                 continue
             if item.id in verdicts:
                 passed, comment = verdicts[item.id]
+                comment = _vietnamese_comment(passed, comment)
             else:
                 passed = False
                 comment = "Reviewer không trả về đánh giá hợp lệ cho mục này; coi là chưa đạt."

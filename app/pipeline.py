@@ -17,7 +17,7 @@ There is no loop: the Reviewer is called exactly once (`MAX_REVIEW_ROUNDS = 1`),
 and the Refiner has no handle on the Reviewer, so a second review round is
 structurally impossible, not just discouraged by a prompt.
 
-After refining, the deterministic rules (R1-R4) are re-run in plain Python
+After refining, the deterministic rules (R1-R8) are re-run in plain Python
 and stored as `post_check`. That is a cheap report for the reader — it does
 not call any LLM and triggers no further rewriting.
 """
@@ -27,17 +27,26 @@ from app.agents.refiner import RefinerAgent
 from app.agents.reviewer import ReviewerAgent
 from app.agents.writer import WriterAgent
 from app.checklist import run_rule_checks
-from app.llm_client import LLMClient, get_llm_client
+from app.llm_client import LLMClient, get_llm_client, get_reviewer_llm_client
 from app.schemas import PipelineResult, TutorialRequest
 
 MAX_REVIEW_ROUNDS = 1
 
 
 class WriterReviewerRefinerPipeline:
-    def __init__(self, llm_client: LLMClient | None = None, llm_mode: str | None = None):
+    def __init__(
+        self,
+        llm_client: LLMClient | None = None,
+        llm_mode: str | None = None,
+        reviewer_client: LLMClient | None = None,
+    ):
         self._llm = llm_client or get_llm_client()
+        # The Reviewer may use a different (stronger) model than the Writer so it does not
+        # grade its own kind of output (self-bias). Defaults to the same client.
+        if reviewer_client is None:
+            reviewer_client = get_reviewer_llm_client(default=self._llm) if llm_client is None else self._llm
         self.writer = WriterAgent(self._llm)
-        self.reviewer = ReviewerAgent(self._llm)
+        self.reviewer = ReviewerAgent(reviewer_client)
         self.refiner = RefinerAgent(self._llm)
         # Always a real, network-backed LLM client in the app — no mock backend exists.
         self._llm_mode = llm_mode or "real"
@@ -53,7 +62,7 @@ class WriterReviewerRefinerPipeline:
         final = self.refiner.run(draft, review)
 
         # Step 4: code-only re-check of the measurable rules on the final text.
-        post_check = run_rule_checks(final.content, draft.max_words)
+        post_check = run_rule_checks(final.content, draft.max_words, request.topic)
 
         return PipelineResult(
             request=request,

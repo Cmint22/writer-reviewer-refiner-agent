@@ -50,7 +50,7 @@ def render_checklist_md(result: PipelineResult) -> str:
         "",
         "## Sau khi sửa (kiểm tra lại bằng code)",
         "",
-        "Chỉ chạy lại các mục R1–R4 bằng code Python; không gọi LLM, không phải vòng review thứ hai.",
+        "Chỉ chạy lại các mục R1–R8 bằng code Python; không gọi LLM, không phải vòng review thứ hai.",
         "Các mục L1–L4 chỉ được đánh giá một lần, trên bản nháp.",
         "",
         _table(result.post_check),

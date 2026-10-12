@@ -29,6 +29,7 @@ def health() -> dict:
         "status": "ok",
         "llm_mode": "real",
         "llm_model": settings.llm_model,
+        "reviewer_model": settings.reviewer_model or settings.llm_model,
         "llm_base_url": settings.llm_base_url,
     }
 
